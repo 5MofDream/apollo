@@ -1,111 +1,29 @@
 package config
 
 import (
-	"bufio"
-	"io"
-	"os"
-	"strings"
+	"github.com/spf13/viper"
 	"fmt"
 )
 
-const middle = "."
+const configPath = "config/app.yaml"
 
-// TODO 写死的 不应该这么做
-// TODO 分离到多个文件中 用文件名 + key 获取
-const configPath = "./config/app.conf"
-
-type configObj struct {
-	Config map[string]string
-	Model  string
-}
-
-var C configObj
+var C *viper.Viper
 
 func init() {
-	C.InitConfig(configPath)
+	C = NewConfig()
 }
 
-func (c *configObj) InitConfig(path string) {
-	c.Config = make(map[string]string)
+func NewConfig() *viper.Viper {
+	if C != nil {
+		return C
+	}
 
-	f, err := os.Open(path)
+	C = viper.New()
+	C.SetConfigType("yaml")
+	C.SetConfigFile(configPath)
+	err := C.ReadInConfig()
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("Fatal error config file: %s \n", err))
 	}
-	defer f.Close()
-
-	r := bufio.NewReader(f)
-	for {
-		b, _, err := r.ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			panic(err)
-		}
-
-		// 去掉两端的空白
-		s := strings.TrimSpace(string(b))
-		// 跳过注释
-		if strings.Index(s, "#") == 0 {
-			continue
-		}
-
-		// 解析配置模块标识
-		n1 := strings.Index(s, "[")
-		n2 := strings.LastIndex(s, "]")
-		if n1 > -1 && n2 > -1 && n2 > n1+1 {
-			c.Model = strings.TrimSpace(s[n1+1: n2])
-			continue
-		}
-
-		if len(c.Model) == 0 {
-			fmt.Println("no Model")
-			continue
-		}
-		index := strings.Index(s, "=")
-		if index < 0 {
-			continue
-		}
-
-		key := strings.TrimSpace(s[:index])
-		if len(key) == 0 {
-			continue
-		}
-		value := strings.TrimSpace(s[index+1:])
-		pos := strings.Index(value, "\t#")
-		if pos > -1 {
-			value = value[0:pos]
-		}
-
-		pos = strings.Index(value, " #")
-		if pos > -1 {
-			value = value[0:pos]
-		}
-
-		pos = strings.Index(value, "\t//")
-		if pos > -1 {
-			value = value[0:pos]
-		}
-
-		pos = strings.Index(value, " //")
-		if pos > -1 {
-			value = value[0:pos]
-		}
-
-		if len(value) == 0 {
-			value = ""
-		}
-
-		model := c.Model + middle + key
-		c.Config[model] = strings.TrimSpace(value)
-	}
-}
-
-func Read(key string) string {
-	v, found := C.Config[key]
-	if !found {
-		return ""
-	}
-	return v
+	return C
 }
